@@ -1,0 +1,11 @@
+[project]
+name = "r-playground-mcp"
+version = "0.1.0"
+description = "An MCP that lets the model transiently execute R code."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "anyio>=4.9.0",
+    "mcp[cli]>=1.6.0",
+    "rpy2>=3.5.17",
+]
