@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP, Context
 from mcp.types import ImageContent, TextContent
 import typing
 
+from rplayground_mcp.configuration import Configuration
 from rplayground_mcp.session_manager import IMAGE_WRITING_DESCRIPTION, SessionManager
 from rplayground_mcp import utils
 
@@ -27,6 +28,7 @@ async def app_lifespan(server: FastMCP) -> typing.AsyncIterator[AppContext]:
         # Cleanup on shutdown
         await session_manager.destroy()
 
+config = Configuration()
 mcp = FastMCP("R Playground", lifespan=app_lifespan)
 
 class RExecutionResult(typing.TypedDict):
@@ -38,13 +40,16 @@ class RExecutionResult(typing.TypedDict):
 
 def mk_mcp_r_tool_description() -> str:
     packages_available = ", ".join([f"{p}" for p in utils.get_r_available_packages()])
+    
+    if config.support_image_output:
+        image_description = "\n" + IMAGE_WRITING_DESCRIPTION + "\n"
+    else:
+        image_description = "\nYou will not be able to see visual image/plot output. Please try to use code and textual output to achieve your goals."
     return f"""\
 Execute an R command in a transient R session. Arguments:
     - command: The R command (or a series of commands) to execute in the REPL session.
     - r_session_id: The ID of the session to execute the command in. If not provided, a new session will be created. Leave blank the first time you call this tool.
-
-{IMAGE_WRITING_DESCRIPTION}
-
+{image_description}
 The packages you have available in the R session are:
 {packages_available}
 """

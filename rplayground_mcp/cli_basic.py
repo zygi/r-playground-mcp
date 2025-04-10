@@ -1,9 +1,11 @@
 import asyncio
+
+from rplayground_mcp.configuration import Configuration
 from .session_manager import SessionManager
 import sys
 import logging
 
-sm = SessionManager()
+sm = SessionManager(Configuration())
 arg = sys.argv[1]
 
 
