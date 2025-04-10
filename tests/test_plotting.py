@@ -1,68 +1,66 @@
 import asyncio
 import sys
 import os
+import time
 import pytest
+import pytest_asyncio
+from typing import Type, AsyncIterator
 
-# Add the parent directory to the path so we can import the module
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+# Import single SessionManager and the interface
+from rplayground_mcp.session_manager_interface import (
+    ISessionManager,
+    ExecutionResult,
+    GET_IMAGE_DEST_FUNCTION_NAME
+)
 from rplayground_mcp.session_manager import SessionManager
 
-@pytest.mark.asyncio
-async def test_r_plotting():
-    """
-    Test the R plotting functionality.
-    
-    This demonstrates how to:
-    1. Create an R session
-    2. Generate a plot in R
-    3. Retrieve the plot image from Python
-    """
-    manager = SessionManager()
-    
-    try:
-        # Create a new session
-        session_id = await manager.create_session()
-        print(f"Created session: {session_id}")
-        
-        # Basic R plot example
-        plot_code = """
-        # Get the file name for our plot
-        filename <- get_img_dest_file_name()
-        
-        # Create a PNG device explicitly with dimensions
-        png(filename=filename, width=800, height=600)
-        
-        # Create a simple plot
-        plot(1:10, main="Simple Line Plot")
-        
-        # Close the device to save the file
-        dev.off()
-        
-        # Return the filename
-        filename
-        """
-        
-        result = await manager.execute_in_session(session_id, plot_code)
-        
-        # Print the outputs
-        if result["successful_output"]:
-            print(f"R output: {result['successful_output']}")
-        
-        if result["r_error_output"]:
-            print(f"R error: {result['r_error_output']}")
-            
-        if result["system_error_output"]:
-            print(f"System error: {result['system_error_output']}")
-        
-        # Check if we have images
-        print(f"Number of images captured: {len(result['images'])}")
-        assert result["images"]
-        assert result["images"][0].size != (0, 0)
-        
-    finally:
-        # Clean up
-        await manager.destroy()
+# --- Fixtures ---
 
-if __name__ == "__main__":
-    asyncio.run(test_r_plotting()) 
+@pytest_asyncio.fixture
+async def manager() -> AsyncIterator[ISessionManager]:
+    """Fixture to create and tear down a SessionManager instance."""
+    m = SessionManager()
+    yield m
+    await m.destroy()
+
+# --- Test Function ---
+
+@pytest.mark.asyncio
+async def test_plotting(manager: ISessionManager):
+    """
+    Test basic R plotting functionality with the session manager.
+    This tests that the manager correctly returns an image when R generates a plot.
+    """
+    session_id = await manager.create_session()
+    print(f"Created session: {session_id}")
+    
+    # Basic R code that creates a simple plot
+    r_code = f"""
+    x <- 1:10
+    y <- x^2
+    
+    # Create a PNG plot - this will be captured by the session manager
+    png(filename={GET_IMAGE_DEST_FUNCTION_NAME}(), width=800, height=600)
+    plot(x, y, main="Simple Plot", xlab="X axis", ylab="Y axis", col="blue", pch=19)
+    dev.off()
+    
+    # Return a confirmation
+    "Plot created successfully"
+    """
+    
+    result = await manager.execute_in_session(session_id, r_code)
+    print(f"Execution result: {result['successful_output']}")
+    
+    # Check there were no errors
+    assert not result["r_error_output"], f"R error occurred: {result['r_error_output']}"
+    assert not result["system_error_output"], f"System error occurred: {result['system_error_output']}"
+    
+    # Check we got 1 image back
+    assert result["images"], "No images were returned"
+    assert len(result["images"]) == 1, f"Expected 1 image, got {len(result['images'])}"
+    
+    # Check image dimensions match what we requested
+    assert result["images"][0].size == (800, 600), f"Image size mismatch: {result['images'][0].size}"
+    
+    # Clean up the session
+    await manager.destroy_session(session_id)

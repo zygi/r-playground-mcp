@@ -15,10 +15,13 @@ dependencies = [
     "pytest-asyncio>=0.26.0",
     "pytest>=8.3.5",
     "rpy2>=3.5.17",
+    "packaging>=24.2",
+    "pydantic-settings>=2.8.1",
 ]
 
 [project.scripts]
 rplayground-mcp = "rplayground_mcp.mcp_cli:mcp.run"
+rplayground-test-basic = "rplayground_mcp.cli_basic:run"
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
