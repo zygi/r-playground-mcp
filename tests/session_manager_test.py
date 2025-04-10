@@ -2,9 +2,9 @@
 
 import asyncio
 import unittest
-from typing import List, cast
+from typing import cast
 
-from session_manager import SessionManager, ExecutionResult
+from rplayground_mcp.session_manager import SessionManager, ExecutionResult
 
 
 class TestSessionManager(unittest.IsolatedAsyncioTestCase):
@@ -18,58 +18,59 @@ class TestSessionManager(unittest.IsolatedAsyncioTestCase):
     
     async def asyncTearDown(self):
         """Clean up sessions after each test."""
+        # Ensure the main test session is destroyed even if others are created
         await self.session_manager.destroy_session(self.test_session_id)
+    
+    def assertExecutionSuccess(self, result: ExecutionResult, expected_output_substring: str | None = None):
+        """Asserts that the execution was successful and optionally checks output content."""
+        self.assertIsNotNone(result["successful_output"], "Expected successful output, but got None.")
+        self.assertIsNone(result["r_error_output"], f"Expected no R error, but got: {result['r_error_output']}")
+        self.assertIsNone(result["system_error_output"], f"Expected no system error, but got: {result['system_error_output']}")
+        if expected_output_substring is not None:
+            # The cast is safe because we asserted successful_output is not None
+            self.assertIn(expected_output_substring, cast(str, result["successful_output"]))
+    
+    def assertExecutionRError(self, result: ExecutionResult, expected_error_substring: str | None = None):
+        """Asserts that the execution resulted in an R error and optionally checks error content."""
+        self.assertIsNone(result["successful_output"], f"Expected no successful output, but got: {result['successful_output']}")
+        self.assertIsNotNone(result["r_error_output"], "Expected R error output, but got None.")
+        self.assertIsNone(result["system_error_output"], f"Expected no system error, but got: {result['system_error_output']}")
+        if expected_error_substring is not None:
+            # The cast is safe because we asserted r_error_output is not None
+            self.assertIn(expected_error_substring.lower(), cast(str, result["r_error_output"]).lower())
     
     async def test_basic_r_execution(self):
         """Test executing a simple R command and getting the result."""
         code = "1 + 1"
         result = await self.session_manager.execute_in_session(self.test_session_id, code)
-        
-        self.assertIsNotNone(result["successful_output"])
-        self.assertIsNone(result["r_error_output"])
-        self.assertIsNone(result["system_error_output"])
-        if result["successful_output"]:  # Only check if not None
-            self.assertIn("2", result["successful_output"])
+        self.assertExecutionSuccess(result, expected_output_substring="2")
     
     async def test_r_error_handling(self):
         """Test that R errors are properly caught and reported."""
         code = "non_existent_variable"
         result = await self.session_manager.execute_in_session(self.test_session_id, code)
-        
-        self.assertIsNone(result["successful_output"])
-        self.assertIsNotNone(result["r_error_output"])
-        self.assertIsNone(result["system_error_output"])
-        if result["r_error_output"]:  # Only check if not None
-            self.assertIn("not found", result["r_error_output"].lower())
+        self.assertExecutionRError(result, expected_error_substring="not found")
     
     async def test_console_output_capture(self):
         """Test that console output is properly captured."""
         code = """
-        cat("Hello from R!\\n")
+        cat("Hello from R!\n")
         print("This is a test message")
         """
         result = await self.session_manager.execute_in_session(self.test_session_id, code)
-        
-        self.assertIsNotNone(result["successful_output"])
-        self.assertIsNone(result["r_error_output"])
-        self.assertIsNone(result["system_error_output"])
-        if result["successful_output"]:  # Only check if not None
-            self.assertIn("Hello from R!", result["successful_output"])
-            self.assertIn("This is a test message", result["successful_output"])
+        self.assertExecutionSuccess(result, expected_output_substring="Hello from R!")
+        # Check for the second message specifically
+        self.assertIn("This is a test message", cast(str, result["successful_output"]))
     
     async def test_session_persistence(self):
         """Test that variables persist within a session."""
         # Set a variable
-        code1 = "x <- 42"
-        await self.session_manager.execute_in_session(self.test_session_id, code1)
+        await self.session_manager.execute_in_session(self.test_session_id, "x <- 42")
         
         # Use the variable in a subsequent command
         code2 = "x * 2"
         result = await self.session_manager.execute_in_session(self.test_session_id, code2)
-        
-        self.assertIsNotNone(result["successful_output"])
-        if result["successful_output"]:  # Only check if not None
-            self.assertIn("84", result["successful_output"])
+        self.assertExecutionSuccess(result, expected_output_substring="84")
     
     async def test_session_isolation(self):
         """Test that multiple sessions are isolated from each other."""
@@ -86,11 +87,8 @@ class TestSessionManager(unittest.IsolatedAsyncioTestCase):
             result1 = await self.session_manager.execute_in_session(self.test_session_id, "x")
             result2 = await self.session_manager.execute_in_session(second_session_id, "x")
             
-            self.assertIsNotNone(result1["successful_output"])
-            self.assertIsNotNone(result2["successful_output"])
-            if result1["successful_output"] and result2["successful_output"]:  # Only check if not None
-                self.assertIn("100", result1["successful_output"])
-                self.assertIn("200", result2["successful_output"])
+            self.assertExecutionSuccess(result1, expected_output_substring="100")
+            self.assertExecutionSuccess(result2, expected_output_substring="200")
         finally:
             # Clean up the second session
             await self.session_manager.destroy_session(second_session_id)
@@ -117,38 +115,34 @@ class TestSessionManager(unittest.IsolatedAsyncioTestCase):
         """
         result = await self.session_manager.execute_in_session(self.test_session_id, code)
         
-        self.assertIsNotNone(result["successful_output"])
-        if result["successful_output"]:  # Only check if not None
-            output = result["successful_output"]
-            # Check that data frame was printed correctly
-            self.assertIn("name", output)
-            self.assertIn("age", output)
-            self.assertIn("score", output)
-            # Check that statistics are included
-            self.assertIn("mean_age", output)
-            self.assertIn("max_score", output)
-            
+        self.assertExecutionSuccess(result) # Check base success first
+        output = cast(str, result["successful_output"]) # Cast is safe due to helper
+        # Check that specific elements are present in the output string
+        self.assertIn("name", output)
+        self.assertIn("Alice", output)
+        self.assertIn("age", output)
+        self.assertIn("score", output)
+        self.assertIn("mean_age", output)
+        self.assertIn("30", output) # Mean age
+        self.assertIn("max_score", output)
+        self.assertIn("95", output) # Max score
+    
     async def test_concurrent_interleaved_execution(self):
         """Test multiple sessions with interleaved commands executing concurrently."""
-        # Create three sessions
+        # Create three sessions concurrently
         session_ids = ["session_1", "session_2", "session_3"]
-        for session_id in session_ids:
-            await self.session_manager.create_session(session_id)
+        await asyncio.gather(*(self.session_manager.create_session(sid) for sid in session_ids))
         
         try:
-            # Prepare tasks for interleaved execution
-            async def session_task(session_id: str, base_value: int):
-                """Run a sequence of commands in a specific session."""
-                results = []
-                
+            async def session_task(session_id: str, base_value: int) -> ExecutionResult:
+                """Run a sequence of commands and return the final result."""
                 # Step 1: Initialize a counter variable
-                result1 = await self.session_manager.execute_in_session(
+                await self.session_manager.execute_in_session(
                     session_id, f"counter <- {base_value}"
                 )
-                results.append(result1)
                 
                 # Step 2: Create a data frame specific to this session
-                result2 = await self.session_manager.execute_in_session(
+                await self.session_manager.execute_in_session(
                     session_id, 
                     f"""
                     df <- data.frame(
@@ -157,21 +151,16 @@ class TestSessionManager(unittest.IsolatedAsyncioTestCase):
                     )
                     """
                 )
-                results.append(result2)
                 
                 # Step 3: Perform a calculation
-                result3 = await self.session_manager.execute_in_session(
+                await self.session_manager.execute_in_session(
                     session_id, "counter <- counter + sum(df$value)"
                 )
-                results.append(result3)
                 
                 # Step 4: Return the final result
-                result4 = await self.session_manager.execute_in_session(
+                return await self.session_manager.execute_in_session(
                     session_id, "counter"
                 )
-                results.append(result4)
-                
-                return results
             
             # Run all session tasks concurrently
             tasks = [
@@ -179,29 +168,21 @@ class TestSessionManager(unittest.IsolatedAsyncioTestCase):
                 session_task("session_2", 200),
                 session_task("session_3", 300)
             ]
-            session_results = await asyncio.gather(*tasks)
+            final_results = await asyncio.gather(*tasks)
             
             # Verify results for each session
             expected_values = [
-                # For session 1: 100 + (100+101+102) = 403
-                "403",
-                # For session 2: 200 + (200+201+202) = 803
-                "803",
-                # For session 3: 300 + (300+301+302) = 1203
-                "1203"
+                "403",  # Session 1: 100 + (100+101+102)
+                "803",  # Session 2: 200 + (200+201+202)
+                "1203"  # Session 3: 300 + (300+301+302)
             ]
             
-            for i, results in enumerate(session_results):
-                # Check the final result of each session
-                final_result = results[3]  # The fourth result
-                self.assertIsNotNone(final_result["successful_output"])
-                if final_result["successful_output"]:
-                    self.assertIn(expected_values[i], final_result["successful_output"])
+            for i, final_result in enumerate(final_results):
+                self.assertExecutionSuccess(final_result, expected_output_substring=expected_values[i])
         
         finally:
-            # Clean up all sessions
-            for session_id in session_ids:
-                await self.session_manager.destroy_session(session_id)
+            # Clean up all sessions concurrently
+            await asyncio.gather(*(self.session_manager.destroy_session(sid) for sid in session_ids))
 
 
 if __name__ == "__main__":

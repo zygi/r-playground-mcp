@@ -1,5 +1,5 @@
 import asyncio
-from session_manager import SessionManager
+from .session_manager import SessionManager
 import sys
 
 if __name__ == "__main__":

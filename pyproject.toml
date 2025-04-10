@@ -1,5 +1,9 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "r-playground-mcp"
+name = "rplayground-mcp"
 version = "0.1.0"
 description = "An MCP that lets the model transiently execute R code."
 readme = "README.md"
@@ -7,5 +11,14 @@ requires-python = ">=3.10"
 dependencies = [
     "anyio>=4.9.0",
     "mcp[cli]>=1.6.0",
+    "pillow>=11.1.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest>=8.3.5",
     "rpy2>=3.5.17",
 ]
+
+[project.scripts]
+rplayground-mcp = "rplayground_mcp.mcp_cli:mcp.run"
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"

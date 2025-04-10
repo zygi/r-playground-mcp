@@ -6,12 +6,20 @@ from concurrent.futures import ProcessPoolExecutor
 import traceback
 import sys
 import multiprocessing as mp
+import tempfile
+import os
+import glob
+from pathlib import Path
+from typing import List
+from PIL import Image
+
 logger = logging.getLogger(__name__)
 
 class ExecutionResult(typing.TypedDict):
     successful_output: str | None
     r_error_output: str | None
     system_error_output: str | None
+    images: List[Image.Image]
 
 
 class AsyncRSession:
@@ -20,11 +28,13 @@ class AsyncRSession:
         self.executor = ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context('spawn'))
         self.process_initialized = False
         self.loop = asyncio.get_event_loop()
+        self.temp_dir = tempfile.mkdtemp(prefix="r_session_")
         
     async def _initialize_process(self):
         if not self.process_initialized:
             # Initialize R in the worker process
-            success = await self.loop.run_in_executor(self.executor, _init_r_session)
+            temp_dir = self.temp_dir
+            success = await self.loop.run_in_executor(self.executor, _init_r_session, temp_dir)
             if not success:
                 raise RuntimeError("Failed to initialize R session")
             self.process_initialized = True
@@ -37,8 +47,9 @@ class AsyncRSession:
             logger.info(f"Process initialized: {self.process_initialized}")
         try:
             # Execute R code in the worker process
+            temp_dir = self.temp_dir
             result = await self.loop.run_in_executor(
-                self.executor, _execute_r_code, code
+                self.executor, _execute_r_code, code, temp_dir
             )
             return result
         except Exception as e:
@@ -47,7 +58,8 @@ class AsyncRSession:
             return ExecutionResult(
                 successful_output=None,
                 r_error_output=None,
-                system_error_output=f"Python error: {str(e)}\n{tb}"
+                system_error_output=f"Python error: {str(e)}\n{tb}",
+                images=[]
             )
     
     async def destroy(self):
@@ -61,15 +73,32 @@ class AsyncRSession:
                 # Shutdown the executor
                 self.executor.shutdown(wait=False)
                 self.process_initialized = False
+                # Clean up temp directory
+                try:
+                    for file in glob.glob(os.path.join(self.temp_dir, "*")):
+                        os.remove(file)
+                    os.rmdir(self.temp_dir)
+                except Exception as e:
+                    logger.error(f"Error cleaning up temp directory: {e}")
 
 
 # This global variable is specific to each worker process
 r_session = None
 rpy2_imported = False
+r_temp_dir = None
 
-def _init_r_session():
+GET_IMAGE_DEST_FUNCTION_NAME = "get_img_dest_file_name"
+IMAGE_WRITING_DESCRIPTION = f"""
+You are allowed to output plots and images from your R code. To do so, you should use the function \
+{GET_IMAGE_DEST_FUNCTION_NAME}(extension="png") to get a magic filename. If you then write \
+the plot to the filename, it will be returned as part of this tool's results.
+You can write the images using any R mechanisms, e.g. by creating an R device with `png(filename=get_img_dest_file_name(), width=..., height=...)`.
+"""
+
+def _init_r_session(temp_dir: str):
     """Initialize an R session in the worker process."""
-    global r_session, rpy2_imported
+    global r_session, rpy2_imported, r_temp_dir
+    r_temp_dir = temp_dir
     try:
         import rpy2.robjects as robjects
         from rpy2.robjects import r
@@ -86,13 +115,23 @@ def _init_r_session():
         # Create a session environment
         r_session("session_env <- new.env()")
         
+        # Create a function to generate random filenames within the temp directory
+        setup_code = f"""
+        .session_plot_dir <- "{temp_dir}"
+        {GET_IMAGE_DEST_FUNCTION_NAME} <- function(extension = "png") {{
+            file.path(.session_plot_dir, paste0("plot_", format(Sys.time(), "%Y%m%d%H%M%S"), "_", 
+                                              floor(runif(1, 1000, 9999)), ".", extension))
+        }}
+        """
+        r_session(setup_code)
+        
         return True
     except Exception as e:
         print(f"Error initializing R session: {str(e)}", file=sys.stderr)
         return False
 
 
-def _execute_r_code(code: str) -> ExecutionResult:
+def _execute_r_code(code: str, temp_dir: str) -> ExecutionResult:
     """Execute R code in the worker process."""
     global r_session, rpy2_imported
     
@@ -100,14 +139,16 @@ def _execute_r_code(code: str) -> ExecutionResult:
         return ExecutionResult(
             successful_output=None,
             r_error_output=None,
-            system_error_output="rpy2 not properly imported"
+            system_error_output="rpy2 not properly imported",
+            images=[]
         )
     
     if r_session is None:
         return ExecutionResult(
             successful_output=None,
             r_error_output=None,
-            system_error_output="R session not initialized"
+            system_error_output="R session not initialized",
+            images=[]
         )
     
     # Import the error types we need to catch
@@ -130,11 +171,11 @@ def _execute_r_code(code: str) -> ExecutionResult:
         result_list = r_session(wrapper_code)
         
         # Get captured output
-        output_lines = result_list.rx2('output') # type: ignore
+        output_lines = result_list.rx2('output')  # type: ignore
         output_str = "\n".join(str(line) for line in output_lines) if len(output_lines) > 0 else ""
         
         # Get the result value
-        r_result = result_list.rx2('result') # type: ignore
+        r_result = result_list.rx2('result')  # type: ignore
         result_str = str(r_result)
         
         # Combine output and result
@@ -142,25 +183,39 @@ def _execute_r_code(code: str) -> ExecutionResult:
             combined_output = output_str + "\n" + result_str
         else:
             combined_output = output_str or result_str
+        
+        # Collect images
+        images = []
+        for img_path in glob.glob(os.path.join(temp_dir, "plot_*.png")):
+            try:
+                img = Image.open(img_path)
+                images.append(img)
+                # Remove the file after loading
+                os.remove(img_path)
+            except Exception as e:
+                logger.error(f"Error loading image {img_path}: {e}")
             
         return ExecutionResult(
             successful_output=combined_output,
             r_error_output=None,
-            system_error_output=None
+            system_error_output=None,
+            images=images
         )
     except RRuntimeError as e:
         # Runtime error from R (like accessing non-existent variable)
         return ExecutionResult(
             successful_output=None,
             r_error_output=str(e),
-            system_error_output=None
+            system_error_output=None,
+            images=[]
         )
     except RParsingError as e:
         # R code parsing error (like syntax error)
         return ExecutionResult(
             successful_output=None,
             r_error_output=f"R parsing error: {str(e)}",
-            system_error_output=None
+            system_error_output=None,
+            images=[]
         )
     except Exception as e:
         # Other Python error
@@ -168,7 +223,8 @@ def _execute_r_code(code: str) -> ExecutionResult:
         return ExecutionResult(
             successful_output=None,
             r_error_output=None,
-            system_error_output=f"Python error: {str(e)}\n{tb}"
+            system_error_output=f"Python error: {str(e)}\n{tb}",
+            images=[]
         )
 
 
@@ -208,7 +264,8 @@ class SessionManager:
             return ExecutionResult(
                 successful_output=None, 
                 r_error_output=None,
-                system_error_output=f"Session {session_id} does not exist"
+                system_error_output=f"Session {session_id} does not exist",
+                images=[]
             )
         
         logger.info(f"Executing code in session {session_id}: {code}")
@@ -225,5 +282,5 @@ class SessionManager:
         return False
     
     async def destroy(self):
-        for session_id in self.sessions:
+        for session_id in list(self.sessions.keys()):
             await self.destroy_session(session_id)
