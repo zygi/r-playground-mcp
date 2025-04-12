@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rplayground-mcp"
-version = "0.1.0"
+version = "0.1.2"
 description = "An MCP that lets the model transiently execute R code."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,11 +17,6 @@ dependencies = [
     "rpy2>=3.5.17",
     "packaging>=24.2",
     "pydantic-settings>=2.8.1",
-]
-
-[project.optional-dependencies]
-ocr = [
-    "marker-pdf"
 ]
 
 [project.scripts]

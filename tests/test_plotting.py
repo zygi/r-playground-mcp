@@ -5,11 +5,12 @@ from typing import AsyncIterator
 # Import single SessionManager and the interface
 from rplayground_mcp.session_manager_interface import (
     ISessionManager,
-    GET_IMAGE_DEST_FUNCTION_NAME
+    GET_IMAGE_DEST_FUNCTION_NAME,
 )
 from rplayground_mcp.session_manager import SessionManager
 
 # --- Fixtures ---
+
 
 @pytest_asyncio.fixture
 async def manager() -> AsyncIterator[ISessionManager]:
@@ -18,7 +19,9 @@ async def manager() -> AsyncIterator[ISessionManager]:
     yield m
     await m.destroy()
 
+
 # --- Test Function ---
+
 
 @pytest.mark.asyncio
 async def test_plotting(manager: ISessionManager):
@@ -28,7 +31,7 @@ async def test_plotting(manager: ISessionManager):
     """
     session_id = await manager.create_session()
     print(f"Created session: {session_id}")
-    
+
     # Basic R code that creates a simple plot
     r_code = f"""
     x <- 1:10
@@ -42,20 +45,25 @@ async def test_plotting(manager: ISessionManager):
     # Return a confirmation
     "Plot created successfully"
     """
-    
+
     result = await manager.execute_in_session(session_id, r_code)
     print(f"Execution result: {result['successful_output']}")
-    
+
     # Check there were no errors
     assert not result["r_error_output"], f"R error occurred: {result['r_error_output']}"
-    assert not result["system_error_output"], f"System error occurred: {result['system_error_output']}"
-    
+    assert not result[
+        "system_error_output"
+    ], f"System error occurred: {result['system_error_output']}"
+
     # Check we got 1 image back
     assert result["images"], "No images were returned"
     assert len(result["images"]) == 1, f"Expected 1 image, got {len(result['images'])}"
-    
+
     # Check image dimensions match what we requested
-    assert result["images"][0].size == (800, 600), f"Image size mismatch: {result['images'][0].size}"
-    
+    assert result["images"][0].size == (
+        800,
+        600,
+    ), f"Image size mismatch: {result['images'][0].size}"
+
     # Clean up the session
     await manager.destroy_session(session_id)

@@ -47,23 +47,26 @@ par(mar = c(5, 8, 4, 2))
 plot(plot_data, las = 1)
 """
 
+
 async def main():
-    parser = argparse.ArgumentParser(description="Execute R commands in a temporary session.")
+    parser = argparse.ArgumentParser(
+        description="Execute R commands in a temporary session."
+    )
     parser.add_argument(
         "command",
         nargs="?",
         help="The R command to execute. If omitted and --graphicstest is not used, help is shown.",
-        default=None
+        default=None,
     )
     parser.add_argument(
         "--graphicstest",
         action="store_true",
-        help="Run a predefined graphics test command instead of the provided command."
+        help="Run a predefined graphics test command instead of the provided command.",
     )
     parser.add_argument(
         "--wait",
         action="store_true",
-        help="Wait for user input after execution before destroying the session."
+        help="Wait for user input after execution before destroying the session.",
     )
 
     args = parser.parse_args()
@@ -92,9 +95,11 @@ async def main():
         await sm.destroy_session(id)
         print(f"Destroyed session {id}")
 
+
 def run():
     print("Starting R command execution CLI")
     asyncio.run(main())
+
 
 if __name__ == "__main__":
     run()

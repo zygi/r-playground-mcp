@@ -1,6 +1,5 @@
 import base64
 from contextlib import asynccontextmanager
-import importlib.util
 import io
 import json
 import logging
@@ -15,21 +14,13 @@ from rplayground_mcp.prompts import PROMPT_REVIEW_PAPER
 from rplayground_mcp.session_manager import SessionManager
 from rplayground_mcp import utils
 from rplayground_mcp.session_manager_interface import IMAGE_WRITING_DESCRIPTION
-from rplayground_mcp.pdf_conversion.converter_subprocess import MarkerConverter
 
 logger = logging.getLogger(__name__)
-
-PDF_CONVERTER: MarkerConverter | None = None
-if importlib.util.find_spec("marker") is not None:
-    from rplayground_mcp.pdf_conversion.converter_subprocess_impl import MPMarkerConverter
-    PDF_CONVERTER = MPMarkerConverter()
-else:
-    PDF_CONVERTER = None
-    logger.warning("Marker not installed, PDF conversion will not be available")
 
 
 class AppContext(typing.TypedDict):
     session_manager: SessionManager
+
 
 @asynccontextmanager
 async def app_lifespan(server: FastMCP) -> typing.AsyncIterator[AppContext]:
@@ -37,19 +28,16 @@ async def app_lifespan(server: FastMCP) -> typing.AsyncIterator[AppContext]:
     # Initialize on startup
     session_manager = SessionManager()
 
-    # if PDF_CONVERTER is not None:
-    #     asyncio.create_task(setup_pdf_converter())
-
-    if PDF_CONVERTER is not None:
-        PDF_CONVERTER.start()
     try:
         yield AppContext(session_manager=session_manager)
     finally:
         # Cleanup on shutdown
         await session_manager.destroy()
 
+
 config = Configuration()
 mcp = FastMCP("R Playground", lifespan=app_lifespan)
+
 
 class RExecutionResult(typing.TypedDict):
     session_id: str
@@ -60,7 +48,7 @@ class RExecutionResult(typing.TypedDict):
 
 def mk_mcp_r_tool_description() -> str:
     packages_available = ", ".join([f"{p}" for p in utils.get_r_available_packages()])
-    
+
     if config.support_image_output:
         image_description = "\n" + IMAGE_WRITING_DESCRIPTION + "\n"
     else:
@@ -79,8 +67,11 @@ The packages you have available in the R session are:
 You are allowed to install new packages if you need to.
 """
 
+
 @mcp.tool(description=mk_mcp_r_tool_description())
-async def execute_r_command(ctx: Context, command: str, r_session_id: str | None = None):
+async def execute_r_command(
+    ctx: Context, command: str, r_session_id: str | None = None
+):
     logger.info("Request received for session %s", r_session_id)
     manager = ctx.request_context.lifespan_context["session_manager"]
     assert isinstance(manager, SessionManager)
@@ -110,25 +101,31 @@ async def execute_r_command(ctx: Context, command: str, r_session_id: str | None
         with io.BytesIO() as buffer:
             img.save(buffer, format="PNG")
             img_bytes = buffer.getvalue()
-            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-            image_contents.append(ImageContent(type="image", data=img_base64, mimeType="image/png"))
-    
+            img_base64 = base64.b64encode(img_bytes).decode("utf-8")
+            image_contents.append(
+                ImageContent(type="image", data=img_base64, mimeType="image/png")
+            )
+
     if len(image_contents) > 0:
         return (result_text,) + tuple(image_contents)
     else:
         return result_text
 
 
-@mcp.prompt("review_paper_prompt", description="Review a paper for statistical errors and other issues.")
+@mcp.prompt(
+    "review_paper_prompt",
+    description="Review a paper for statistical errors and other issues.",
+)
 async def review_paper() -> list[Message]:
     text = Message(
-        role="user",
-        content=TextContent(type="text", text=PROMPT_REVIEW_PAPER)
-    )  
+        role="user", content=TextContent(type="text", text=PROMPT_REVIEW_PAPER)
+    )
     return [text]
+
 
 def main() -> None:
     mcp.run()
+
 
 if __name__ == "__main__":
     main()

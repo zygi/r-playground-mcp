@@ -3,12 +3,14 @@ from abc import ABC, abstractmethod
 from typing import List
 from PIL import Image
 
+
 # Define the common result structure
 class ExecutionResult(typing.TypedDict):
     successful_output: str | None
     r_error_output: str | None
     system_error_output: str | None
     images: List[Image.Image]
+
 
 # Define the interface using an Abstract Base Class
 class ISessionManager(ABC):
@@ -54,6 +56,7 @@ class ISessionManager(ABC):
         """Destroys all active sessions managed by this manager."""
         pass
 
+
 # Common constants can also live here if desired
 GET_IMAGE_DEST_FUNCTION_NAME = "get_img_dest_file_name"
 IMAGE_WRITING_DESCRIPTION = f"""
@@ -61,4 +64,4 @@ You are allowed to output plots and images from your R code. To do so, you shoul
 {GET_IMAGE_DEST_FUNCTION_NAME}(extension="png") to get a magic filename. If you then write \
 the plot to the filename, it will be returned as part of this tool's results.
 You can write the images using any R mechanisms, e.g. by creating an R device with `png(filename=get_img_dest_file_name(), width=..., height=...)`.
-""" 
+"""
