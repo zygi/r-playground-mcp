@@ -1,19 +1,13 @@
-import asyncio
 import base64
 from contextlib import asynccontextmanager
 import importlib.util
 import io
 import json
 import logging
-import PIL.Image
 from mcp.server.fastmcp import FastMCP, Context
-from mcp.types import ImageContent, TextContent, EmbeddedResource, BlobResourceContents
+from mcp.types import ImageContent, TextContent
 from mcp.server.fastmcp.prompts.base import Message
 import typing
-import httpx
-from pydantic import AnyUrl
-import tempfile
-from pathlib import Path
 
 
 from rplayground_mcp.configuration import Configuration
@@ -132,56 +126,6 @@ async def review_paper() -> list[Message]:
         content=TextContent(type="text", text=PROMPT_REVIEW_PAPER)
     )  
     return [text]
-
-
-
-# async def setup_pdf_converter():
-
-if PDF_CONVERTER is not None:
-    assert PDF_CONVERTER is not None
-    # await PDF_CONVERTER.wait_for_startup()
-    logger.info("PDF converter initialized")
-
-    @mcp.tool("ocr_paper", description="OCR a PDF from a URL")
-    async def ocr_paper(url: str):
-        anyurl = AnyUrl(url)
-        if anyurl.scheme not in ["http", "https"]:
-            raise ValueError("Invalid URL")
-        
-        # download to temp file
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, follow_redirects=True)
-            response.raise_for_status()  # Raise an exception for HTTP errors
-            
-            with tempfile.NamedTemporaryFile(suffix=".pdf") as temp_file:
-                temp_file.write(response.content)
-                temp_file_path = temp_file.name
-        
-                assert PDF_CONVERTER is not None
-                logger.info("Waiting for PDF converter startup")
-                await PDF_CONVERTER.wait_for_startup()
-                rendered = await PDF_CONVERTER.convert(Path(temp_file_path))
-                # text, _, images = text_from_rendered(rendered)
-                text = rendered["text"]
-                image_values = rendered["images"]
-        
-                return [TextContent(type="text", text=text)] + [
-                    ImageContent(type="image", data=img, mimeType="image/png")
-                    for (_, img) in list(image_values.items())#[:1]
-                ]
-                # return (
-                #     Message(
-                #         role="user",
-                #         content=TextContent(type="text", text=text),
-                #     )
-                # ,) + tuple(
-                #     Message(
-                #         role="user",
-                #         content=EmbeddedResource(type="resource", resource=BlobResourceContents(uri=AnyUrl("embimg://asdf"), blob=img, mimeType="image/png",)),
-                #         # content=EmbeddedResource(type="image", data=img, mimeType="image/png",),
-                #     )
-                #     for (_, img) in list(image_values.items())#[:1]
-                # )
 
 def main() -> None:
     mcp.run()

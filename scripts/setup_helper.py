@@ -7,12 +7,13 @@
 import os
 import sys
 import shutil
-from typing import Optional
+from typing import Optional, Dict, Any
 import string  # Added import
 import re      # Added import
 from packaging import version # Added import for version parsing
 import subprocess # Added import
 import json # Added import
+from pathlib import Path # Added import
 
 
 
@@ -123,6 +124,85 @@ def check_uvx_version(required_version_str: str = "0.6") -> None:
         print(f"An unexpected error occurred during uvx version check: {e}", file=sys.stderr)
         sys.exit(1)
 
+def get_claude_config_path() -> Optional[Path]:
+    """Gets the OS-specific path to the Claude Desktop config file."""
+    try:
+        if sys.platform == "win32":
+            appdata = os.getenv("APPDATA")
+            if not appdata:
+                print("Error: APPDATA environment variable not found.", file=sys.stderr)
+                return None
+            config_path = Path(appdata) / "Claude" / "claude_desktop_config.json"
+        elif sys.platform == "darwin": # macOS
+            config_path = Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+        else:
+            print(f"Warning: Unsupported platform '{sys.platform}' for Claude Desktop config.", file=sys.stderr)
+            return None
+        return config_path
+    except Exception as e:
+        print(f"Error determining Claude config path: {e}", file=sys.stderr)
+        return None
+
+def install_mcp_config_to_claude(mcp_config: Dict[str, Any]) -> None:
+    """Installs the generated MCP configuration into the Claude Desktop config file."""
+    config_path = get_claude_config_path()
+    if not config_path:
+        print("Skipping Claude Desktop configuration update.", file=sys.stderr)
+        return
+
+    print(f"\nAttempting to update Claude Desktop config at: {config_path}")
+
+    # Ensure the directory exists
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"Error creating directory {config_path.parent}: {e}", file=sys.stderr)
+        return
+
+    claude_config: Dict[str, Any] = {}
+    try:
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                claude_config = json.load(f)
+        else:
+            print(f"Config file not found at {config_path}. A new one will be created.")
+            # Initialize with a basic structure if creating anew
+            claude_config = {"mcpServers": {}}
+
+    except json.JSONDecodeError:
+        print(f"Error: Existing config file at {config_path} is corrupted. Cannot update.", file=sys.stderr)
+        # Optionally, offer to overwrite or back up the corrupted file
+        return
+    except OSError as e:
+        print(f"Error reading config file {config_path}: {e}", file=sys.stderr)
+        return
+
+    # Ensure 'mcpServers' key exists
+    if "mcpServers" not in claude_config:
+        claude_config["mcpServers"] = {}
+    elif not isinstance(claude_config.get("mcpServers"), dict):
+         print(f"Error: 'mcpServers' key in {config_path} is not a dictionary. Cannot update.", file=sys.stderr)
+         return # Or handle differently, e.g., overwrite if confirmed
+
+    # Add or update the 'r-playground' configuration
+    # Assuming mcp_config looks like {"r-playground": {...}}
+    if "r-playground" in mcp_config:
+        claude_config["mcpServers"]["r-playground"] = mcp_config["r-playground"]
+        print("Updated 'r-playground' configuration.")
+    else:
+        print("Warning: Generated MCP config doesn't contain the expected 'r-playground' key.", file=sys.stderr)
+        return # Nothing to install if the key isn't there
+
+    # Write the updated config back
+    try:
+        with open(config_path, 'w') as f:
+            json.dump(claude_config, f, indent=2)
+        print(f"Successfully updated Claude Desktop config at: {config_path}")
+    except OSError as e:
+        print(f"Error writing updated config file {config_path}: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"An unexpected error occurred while writing the config file: {e}", file=sys.stderr)
+
 def windows_help_setup():
     # assert windows
     assert sys.platform == "win32", "This function is only available on Windows"
@@ -143,6 +223,49 @@ def windows_help_setup():
         # Provide guidance on installation or setting PATH/R_HOME
 
     # try to find the R executable. First, by checking if it's in path. If not, try to find R_HOME. If that's not set either, heuristically check for R in common install locations.
+
+    # --- Generate MCP JSON Output --- 
+    print("-"*20) # Separator
+    if r_home_path:
+        print("\nGenerating MCP configuration JSON...")
+        mcp_config = {
+            "r-playground": {
+                "command": "uvx",
+                "args": [
+                    "--python=3.13",
+                    "rplayground-mcp" # Assuming this is the package/script name uvx should run
+                ],
+                "env": {
+                    "R_HOME": r_home_path
+                }
+            }
+        }
+        
+        # Print the JSON object
+        print(json.dumps(mcp_config, indent=2))
+
+        # --- Ask to Install to Claude Desktop ---
+        install_response = 'n' # Default to no if non-interactive
+        try:
+            if get_claude_config_path(): # Only ask if we know where the config *should* be
+                 install_response = input("Do you want to install this configuration into Claude Desktop? (y/N): ").lower().strip()
+        except EOFError: # Handle non-interactive environments
+             print("\nNon-interactive mode detected, skipping Claude Desktop config installation.")
+
+        if install_response in ['y', 'yes']:
+             install_mcp_config_to_claude(mcp_config)
+        else:
+             print("Skipping installation to Claude Desktop.")
+
+    else:
+        print("\nCould not determine a valid R_HOME path. Skipping MCP JSON generation.", file=sys.stderr)
+
+    # Delete the now-redundant function call if it exists
+    # The original windows_help_setup function can be removed or kept as a utility 
+    # depending on whether it's called elsewhere. For now, just making it pass.
+    
+    # The old comment is no longer relevant here
+    # # try to find the R executable. First, by checking if it's in path. If not, try to find R_HOME. If that's not set either, heuristically check for R in common install locations.
 
 if __name__ == "__main__":
     # 1. Check uvx version first
@@ -236,12 +359,19 @@ if __name__ == "__main__":
         
         # Print the JSON object
         print(json.dumps(mcp_config, indent=2))
+
+        # --- Ask to Install to Claude Desktop ---
+        install_response = 'n' # Default to no if non-interactive
+        try:
+            if get_claude_config_path(): # Only ask if we know where the config *should* be
+                 install_response = input("Do you want to install this configuration into Claude Desktop? (y/N): ").lower().strip()
+        except EOFError: # Handle non-interactive environments
+             print("\nNon-interactive mode detected, skipping Claude Desktop config installation.")
+
+        if install_response in ['y', 'yes']:
+             install_mcp_config_to_claude(mcp_config)
+        else:
+             print("Skipping installation to Claude Desktop.")
+
     else:
         print("\nCould not determine a valid R_HOME path. Skipping MCP JSON generation.", file=sys.stderr)
-
-    # Delete the now-redundant function call if it exists
-    # The original windows_help_setup function can be removed or kept as a utility 
-    # depending on whether it's called elsewhere. For now, just making it pass.
-    
-    # The old comment is no longer relevant here
-    # # try to find the R executable. First, by checking if it's in path. If not, try to find R_HOME. If that's not set either, heuristically check for R in common install locations.
