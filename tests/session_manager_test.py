@@ -3,7 +3,7 @@
 import asyncio
 import pytest
 import pytest_asyncio
-from typing import cast, Type, AsyncIterator
+from typing import cast, AsyncIterator
 
 # Import the single SessionManager implementation and the interface
 from rplayground_mcp.session_manager_interface import ISessionManager, ExecutionResult

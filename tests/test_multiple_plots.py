@@ -1,14 +1,9 @@
-import asyncio
-import sys
-import os
-import time
 import pytest
 import pytest_asyncio
-from typing import Type, AsyncIterator
+from typing import AsyncIterator
 
 from rplayground_mcp.session_manager_interface import (
     ISessionManager,
-    ExecutionResult,
     GET_IMAGE_DEST_FUNCTION_NAME
 )
 from rplayground_mcp.session_manager import SessionManager

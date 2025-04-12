@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 dependencies = [
     "anyio>=4.9.0",
     "mcp[cli]>=1.6.0",
-    "pillow>=11.1.0",
+    "pillow>=10.0",
     "pytest-asyncio>=0.26.0",
     "pytest>=8.3.5",
     "rpy2>=3.5.17",
@@ -19,9 +19,22 @@ dependencies = [
     "pydantic-settings>=2.8.1",
 ]
 
+[project.optional-dependencies]
+ocr = [
+    "marker-pdf"
+]
+
 [project.scripts]
-rplayground-mcp = "rplayground_mcp.mcp_cli:mcp.run"
+rplayground-mcp = "rplayground_mcp.mcp_cli:main"
 rplayground-test-basic = "rplayground_mcp.cli_basic:run"
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
+testpaths = [
+    "tests"
+]
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=0.26.0",
+]

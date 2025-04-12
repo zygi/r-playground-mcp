@@ -156,7 +156,7 @@ if __name__ == "__main__":
         r_home_path = find_r_home()
         if r_home_path:
              print(f"Detected R home directory: {r_home_path}")
-             print(f"Please set the R_HOME environment variable manually if needed.")
+             print("Please set the R_HOME environment variable manually if needed.")
         else:
              print("Could not automatically detect the R home directory.")
         sys.exit(0)
@@ -191,7 +191,7 @@ if __name__ == "__main__":
         
         response = 'n' # Default to no if non-interactive
         try:
-            response = input(f"Do you want to set R_HOME to this path for your user account? (y/N): ").lower().strip()
+            response = input("Do you want to set R_HOME to this path for your user account? (y/N): ").lower().strip()
         except EOFError: # Handle non-interactive environments
              print("\nNon-interactive mode detected, skipping R_HOME setup.")
              

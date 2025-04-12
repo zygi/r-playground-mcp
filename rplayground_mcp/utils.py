@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Type, TypeVar
 import rpy2.situation
 from rpy2.robjects import r
 
@@ -22,6 +23,13 @@ def get_r_available_packages() -> list[str]:
         # Return empty list if there's an error
         logger.error("Error getting installed packages: %s", str(e), exc_info=True)
         return []
+    
+
+T = TypeVar("T")
+def assertType(x: Any, t: Type[T]) -> T:
+    if not isinstance(x, t):
+        raise ValueError(f"Expected {t}, got {type(x)}")
+    return x
 
 if __name__ == "__main__":
     print(get_r_available_packages())

@@ -1,14 +1,9 @@
 import logging
 import random
-import typing
-import asyncio
 import traceback
-import sys
 import tempfile
 import os
 import glob
-from pathlib import Path
-from typing import List
 from PIL import Image
 import rpy2.robjects as robjects
 from rpy2.robjects import r
@@ -20,8 +15,7 @@ from rpy2.rinterface_lib._rinterface_capi import RParsingError
 from .session_manager_interface import (
     ISessionManager,
     ExecutionResult,
-    GET_IMAGE_DEST_FUNCTION_NAME,
-    IMAGE_WRITING_DESCRIPTION
+    GET_IMAGE_DEST_FUNCTION_NAME
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +52,12 @@ class AsyncRSession:
             # Note: Using R's `assign` to put it directly into the environment
             setup_code = f"""
             local({{
+                # Set the locale to C to force ASCII and English messages
+                Sys.setenv(LC_ALL='C')
+
+                # Set a default CRAN mirror to avoid interactive prompts for install.packages
+                options(repos = c(CRAN = "https://cran.rstudio.com/"))
+
                 .session_plot_dir <- "{self.temp_dir.replace(os.sep, '/')}" # Ensure forward slashes for R path compatibility
                 img_func <- function(extension = "png") {{
                     file.path(.session_plot_dir, paste0("plot_", format(Sys.time(), "%Y%m%d%H%M%S"), "_",
@@ -66,7 +66,7 @@ class AsyncRSession:
                 assign("{GET_IMAGE_DEST_FUNCTION_NAME}", img_func, envir = parent.env(environment()))
             }}, envir = {self.env_name})
             """
-            logger.debug(f"Defining helper functions in {self.env_name}")
+            logger.debug(f"Defining helper functions and setting options in {self.env_name}")
             self.r(setup_code)
             logger.info(f"Initialized R session {self.session_id} with env {self.env_name} and temp dir {self.temp_dir}")
 
