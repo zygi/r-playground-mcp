@@ -7,13 +7,15 @@ It can be used for sophisticated agentic deployments, but also as a way to augme
 ## Features:
 - Stateful sessions: each conversation thread gets a new session, but the session can persist across calss and user/assistant interactions. 
 - Graphics output: multimodal models can draw plots using standard R libraries like ggplot, see those plots, and react to them.
-- __NO HOST ISOLATION__: while each session runs as a separate R environment, they have access to global dependencies and all files on the computer. While unlikely, a rogue model could write R code that deletes your important files.
+- ⚠️__NO HOST ISOLATION__⚠️: while each session runs as a separate R environment, they have access to global dependencies and all files on the computer. While unlikely, a rogue model could write R code that deletes your important files.
 - Works in all common operating systems/architectures - Windows x64 / arm64, MacOS, Linux 
-
 
 ## Configuration
 Currently there's just one configuration parameter that can be set as an environment variable:
 - `RPLAYGROUND_MCP_SUPPORT_IMAGE_OUTPUT`, default True. If set to False, image output will be disabled, and tool descriptions will be made to reflect that.
+
+## Usage
+The AIs will have access to all globally installed R packages, and can install whatever package they want. These installations will persist. You can pre-install important packages to make them available in advance.
 
 
 ## Installation
