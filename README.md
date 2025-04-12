@@ -1,11 +1,13 @@
 # MCP R Playground
+[![PyPI version](https://img.shields.io/pypi/v/rplayground-mcp.svg)](https://pypi.org/project/rplayground-mcp/)
+
 An MCP server that allows AI models to execute R code, see its results, and draw and observe plots. 
 It can be used for sophisticated agentic deployments, but also as a way to augment AI clients like Claude Desktop when talking to them about scientific papers. 
 
 ## Features:
 - Stateful sessions: each conversation thread gets a new session, but the session can persist across calss and user/assistant interactions. 
 - Graphics output: multimodal models can draw plots using standard R libraries like ggplot, see those plots, and react to them.
-- *NO HOST ISOLATION*: while each session runs as a separate R environment, they have access to global dependencies and all files on the computer. While unlikely, a rogue model could write R code that deletes your important files.
+- __NO HOST ISOLATION__: while each session runs as a separate R environment, they have access to global dependencies and all files on the computer. While unlikely, a rogue model could write R code that deletes your important files.
 - Works in all common operating systems/architectures - Windows x64 / arm64, MacOS, Linux 
 
 
@@ -34,7 +36,7 @@ This section is for less technical users who want to set up this MCP to use with
 - We have provided a helper script that you can use to set up the MCP server to work with Claude Desktop. You can run it with `uv run --python=3.13 https://raw.githubusercontent.com/zygi/r-playground-mcp/refs/heads/master/scripts/setup_helper.py`. With your permission, it will:
     - Set the R_HOME environment variable to your R installation
     - Install the MCP inside your Claude Desktop configuration.
-- That's it! Starting Claude Desktop should now display the tools as available.
+- That's it! Starting Claude Desktop should now display the tools as available. Or just ask it to "test out the `execute_r_command` tool".
 
 
 ### MacOS
@@ -48,7 +50,7 @@ This section is for less technical users who want to set up this MCP to use with
 - We have provided a helper script that you can use to set up the MCP server to work with Claude Desktop. You can run it with `uv run --python=3.13 https://raw.githubusercontent.com/zygi/r-playground-mcp/refs/heads/master/scripts/setup_helper.py`. With your permission, it will:
     - Set the R_HOME environment variable to your R installation
     - Install the MCP inside your Claude Desktop configuration.
-- That's it! Starting Claude Desktop should now display the tools as available.
+- That's it! Starting Claude Desktop should now display the tools as available. Or just ask it to "test out the `execute_r_command` tool".
 
 ## Issues and Contributions
 Feel free to create an Issue if you have questions or requests. Small PRs are welcome anytime, larger PRs should be discussed by creating an Issue before a PR is started. 
