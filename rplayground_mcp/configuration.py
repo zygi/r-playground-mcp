@@ -8,3 +8,4 @@ class Configuration(BaseSettings):
     )
 
     support_image_output: bool = Field(default=True, alias="SUPPORT_IMAGE_OUTPUT")
+    package_list_in_description: bool = Field(default=False, alias="PACKAGE_LIST_IN_DESCRIPTION")

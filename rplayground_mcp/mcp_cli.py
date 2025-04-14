@@ -48,6 +48,11 @@ class RExecutionResult(typing.TypedDict):
 
 def mk_mcp_r_tool_description() -> str:
     packages_available = ", ".join([f"{p}" for p in utils.get_r_available_packages()])
+    
+    if config.package_list_in_description:
+        package_string = f"The packages you have available in the R session are: {packages_available}"
+    else:
+        package_string = ""
 
     if config.support_image_output:
         image_description = "\n" + IMAGE_WRITING_DESCRIPTION + "\n"
@@ -61,9 +66,7 @@ To avoid losing too much work, prefer to call this tool in small chunks of comma
 More concretely: no more than 100 LOC at a time.
 
 {image_description}
-The packages you have available in the R session are:
-{packages_available}
-
+{package_string}
 You are allowed to install new packages if you need to.
 """
 
@@ -122,9 +125,26 @@ async def review_paper() -> list[Message]:
     )
     return [text]
 
+# mode
+import argparse
 
 def main() -> None:
-    mcp.run()
+    parser = argparse.ArgumentParser()
+    # mode is either stdio or sse
+    parser.add_argument("--mode", type=str, default="stdio")
+    parser.add_argument("--host", type=str, default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+    
+    if args.mode == "stdio":
+        mcp.run()
+    elif args.mode == "sse":
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+        mcp.run(transport="sse")
+    else:
+        raise ValueError(f"Invalid mode: {args.mode}")
+
 
 
 if __name__ == "__main__":
