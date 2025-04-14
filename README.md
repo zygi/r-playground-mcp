@@ -8,6 +8,7 @@ It can be used for sophisticated agentic deployments, but also as a way to augme
 - Stateful sessions: each conversation thread gets a new session, but the session can persist across calss and user/assistant interactions. 
 - Graphics output: multimodal models can draw plots using standard R libraries like ggplot, see those plots, and react to them.
 - ⚠️__NO HOST ISOLATION__⚠️: while each session runs as a separate R environment, they have access to global dependencies and all files on the computer. While unlikely, a rogue model could write R code that deletes your important files.
+    - If you need host isolation, you should run this MCP in Docker. Instructions for that are provided below.
 - Works in all common operating systems/architectures - Windows x64 / arm64, MacOS, Linux 
 
 ## Configuration
@@ -15,7 +16,7 @@ Currently there's just one configuration parameter that can be set as an environ
 - `RPLAYGROUND_MCP_SUPPORT_IMAGE_OUTPUT`, default True. If set to False, image output will be disabled, and tool descriptions will be made to reflect that.
 
 ## Usage
-The AIs will have access to all globally installed R packages, and can install whatever package they want. These installations will persist. You can pre-install important packages to make them available in advance.
+By default, the AIs will have access to all globally installed R packages, and can install whatever package they want. These installations will persist. You can pre-install important packages to make them available in advance.
 
 
 ## Installation
@@ -53,6 +54,14 @@ This section is for less technical users who want to set up this MCP to use with
     - Set the R_HOME environment variable to your R installation
     - Install the MCP inside your Claude Desktop configuration.
 - That's it! Starting Claude Desktop should now display the tools as available. Or just ask it to "test out the `execute_r_command` tool".
+
+## Installation (Docker)
+We also provide Dockerfiles to run this MCP in an isolated context. This only supports the platform linux/amd64. 
+The image uses the [`r2u`](https://github.com/eddelbuettel/r2u) project to make precompiled CRAN packages available. The Dockerfile comes with two versions:
+- Slim: `docker build --platform=linux/amd64 .`. This sets up the `r2u` repositories but installing a new package from the R session will still take ~10s.
+- Fat: `docker build --build-arg PREINSTALL_PACKAGES=true --platform=linux/amd64 .`. This preinstalls a big selection of packages to the Docker image, and loading them in an MCP session becomes instant.
+
+You are also welcome to edit the Dockerfile and preinstall just the packages relevant to your workflow.
 
 ## Issues and Contributions
 Feel free to create an Issue if you have questions or requests. Small PRs are welcome anytime, larger PRs should be discussed by creating an Issue before a PR is started. 
