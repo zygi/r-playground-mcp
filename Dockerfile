@@ -10,6 +10,9 @@ ENV PATH="/root/.local/bin:$PATH"
 
 RUN (curl -LsSf https://astral.sh/uv/install.sh | sh) && uv --version
 
+# Install tidyverse by default
+RUN Rscript -e 'install.packages("tidyverse")'
+
 COPY <<EOF /tmp/install_packages.R
 # Install ctv package for task views
 install.packages("ctv")
