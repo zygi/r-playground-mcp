@@ -6,7 +6,7 @@ An MCP server that allows AI models to execute R code, see its results, and draw
 It can be used for sophisticated agentic deployments, but also as a way to augment AI clients like Claude Desktop when talking to them about scientific papers. 
 
 ## Features:
-- Stateful sessions: each conversation thread gets a new session, but the session can persist across calss and user/assistant interactions. 
+- Stateful sessions: each conversation thread gets a new session, but the session can persist across calls and user/assistant interactions. 
 - Graphics output: multimodal models can draw plots using standard R libraries like ggplot, see those plots, and react to them.
 - Works in all common operating systems/architectures - Windows x64 / arm64, MacOS, Linux.
 - When running locally, ⚠️__NO HOST ISOLATION__⚠️: while each session runs as a separate R environment, they have access to global dependencies and all files on the computer. While unlikely, a rogue model could write R code that deletes your important files.
