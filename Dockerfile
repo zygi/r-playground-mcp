@@ -1,6 +1,6 @@
 FROM docker.io/rocker/r2u:jammy
 
-RUN apt update -qq && apt install -y curl build-essential wget git libzstd-dev
+RUN apt update -qq && apt install -y curl
 
 ENV PATH="/root/.local/bin:$PATH"
 
