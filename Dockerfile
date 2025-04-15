@@ -1,8 +1,4 @@
-# FROM docker.io/posit/r-base:4.4-focal
-# FROM docker.io/posit/r-base:4.4-focal
-
-# FROM rstudio/rstudio-package-manager:ubuntu2204
-FROM docker.io/rocker/r2u:focal
+FROM docker.io/rocker/r2u:jammy
 
 RUN apt update -qq && apt install -y curl build-essential wget git libzstd-dev
 
@@ -47,9 +43,16 @@ WORKDIR /app
 
 RUN uv sync --python=3.13
 
+RUN apt remove -y gcc-11 g++-11 cpp-11 && apt autoremove -y && rm -rf /var/lib/apt/lists/*
+
+# Squash the image to reduce size
+FROM scratch AS uv
+COPY --from=0 / /
+WORKDIR /app
+ENV PATH="/root/.local/bin:$PATH"
 
 # This seems to be necessary since for some reason just doing `uv run` forces a reinstall of the local editable package, which while almost instant outputs stuff to stdio, and we can't have that since the mcp uses stdio
-ENTRYPOINT [ "bash", "-c", "uv sync --python=3.13 > /dev/null 2>&1 && uv run python -m rplayground_mcp.mcp_cli" ]
+CMD [ "bash", "-c", "uv sync --python=3.13 > /dev/null 2>&1 && uv run python -m rplayground_mcp.mcp_cli" ]
 
 
 # ENTRYPOINT [ "uv", "run", "python", "-m", "rplayground_mcp.mcp_cli" ]
